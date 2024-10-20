@@ -35,18 +35,64 @@ const BitPointLandingPage = () => {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+2547');
   const [code, setCode] = useState('');
+  const [errors, setErrors] = useState({ phone: '', code: '' });
 
   const handleBuyNow = () => {
     setShowPurchaseModal(true);
   };
 
+  const validatePhone = (value) => {
+    if (!value) {
+      return 'Phone number is required';
+    }
+    if (!/^\+2547\d{0,9}$/.test(value)) {
+      return 'Invalid phone number format';
+    }
+    if (value.length > 13) {
+      return 'Phone number is too long';
+    }
+    return '';
+  };
+
+  const validateCode = (value) => {
+    if (!value) {
+      return 'Purchase code is required';
+    }
+    if (!/^\d{4}$/.test(value)) {
+      return 'Code must be exactly 4 digits';
+    }
+    return '';
+  };
+
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    if (value.startsWith('+2547')) {
+      setPhone(value);
+      setErrors(prev => ({ ...prev, phone: validatePhone(value) }));
+    }
+  };
+
+  const handleCodeChange = (e) => {
+    const value = e.target.value;
+    if (value.length <= 4) {
+      setCode(value);
+      setErrors(prev => ({ ...prev, code: validateCode(value) }));
+    }
+  };
+
   const handlePurchaseSubmit = (e) => {
     e.preventDefault();
-    console.log('Purchase submitted', { phone, code });
-    setShowPurchaseModal(false);
-    setShowEmailModal(true);
+    const phoneError = validatePhone(phone);
+    const codeError = validateCode(code);
+    setErrors({ phone: phoneError, code: codeError });
+
+    if (!phoneError && !codeError) {
+      console.log('Purchase submitted', { phone, code });
+      setShowPurchaseModal(false);
+      setShowEmailModal(true);
+    }
   };
 
   const handleEmailSubmit = (e) => {
@@ -213,10 +259,11 @@ const BitPointLandingPage = () => {
               type="tel"
               id="phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              className="mt-1 block w-full rounded-md border-blue-500 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              onChange={handlePhoneChange}
+              className={`mt-1 block w-full rounded-md border-blue-500 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${errors.phone ? 'border-red-500' : ''}`}
+              placeholder="+2547XXXXXXXX"
             />
+            {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
           </div>
           <div>
             <label htmlFor="code" className="block text-sm font-medium text-gray-700">Purchase Code</label>
@@ -224,10 +271,11 @@ const BitPointLandingPage = () => {
               type="text"
               id="code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              className="mt-1 block w-full rounded-md border-blue-500 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              onChange={handleCodeChange}
+              className={`mt-1 block w-full rounded-md border-blue-500 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${errors.code ? 'border-red-500' : ''}`}
+              placeholder="Enter 4-digit code"
             />
+            {errors.code && <p className="mt-1 text-sm text-red-600">{errors.code}</p>}
           </div>
           <button type="submit" className="w-full bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition duration-300">
             Submit Purchase
