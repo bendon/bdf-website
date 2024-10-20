@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Zap, Lock, Smartphone } from 'lucide-react';
+import NavbarWithCTA from './NavbarWithCTA';
 import ComparisonStats from './ComparisonStats';
 import Footer from './Footer'; 
 
@@ -76,37 +77,7 @@ const BitPointLandingPage = () => {
   return (
     <div className="font-sans flex flex-col min-h-screen">
     {/* Updated Navigation */}
-    <nav className="bg-white border-b border-gray-200">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
-            <div className="text-2xl font-bold">
-              <span className="text-blue-600">Bit</span>Point
-            </div>
-            <div className="hidden md:flex ml-10 space-x-8">
-              <a href="https://edgetech.co.ke" className="text-gray-700 hover:text-blue-600" target="_blank" rel="noopener noreferrer">
-                Cyber Security Services
-              </a>
-              <a href="#features" className="text-gray-700 hover:text-blue-600">Features</a>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button className="text-gray-700 hover:text-blue-600">
-              Sign In
-            </button>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-300 hidden md:block">
-              Talk to Sales
-            </button>
-            <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition duration-300 hidden md:block">
-              Get Started
-            </button>
-            <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition duration-300 md:hidden">
-              Sign Up
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <NavbarWithCTA />
 
       {/* Centered Container */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
