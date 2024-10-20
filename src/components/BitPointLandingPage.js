@@ -35,7 +35,7 @@ const BitPointLandingPage = () => {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+2547');
+  const [phone, setPhone] = useState('+254');
   const [code, setCode] = useState('');
   const [errors, setErrors] = useState({ phone: '', code: '' });
 
@@ -47,7 +47,7 @@ const BitPointLandingPage = () => {
     if (!value) {
       return 'Phone number is required';
     }
-    if (!/^\+2547\d{0,9}$/.test(value)) {
+    if (!/^\+254\d{0,9}$/.test(value)) {
       return 'Invalid phone number format';
     }
     if (value.length > 13) {
@@ -68,7 +68,7 @@ const BitPointLandingPage = () => {
 
   const handlePhoneChange = (e) => {
     const value = e.target.value;
-    if (value.startsWith('+2547')) {
+    if (value.startsWith('+254')) {
       setPhone(value);
       setErrors(prev => ({ ...prev, phone: validatePhone(value) }));
     }
@@ -261,7 +261,7 @@ const BitPointLandingPage = () => {
               value={phone}
               onChange={handlePhoneChange}
               className={`mt-1 block w-full rounded-md border-blue-500 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${errors.phone ? 'border-red-500' : ''}`}
-              placeholder="+2547XXXXXXXX"
+              placeholder="+254XXXXXXXXX"
             />
             {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
           </div>

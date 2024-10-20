@@ -22,6 +22,15 @@ const NavbarWithCTA = () => {
                 <div className="text-2xl font-bold">
                   <span className="text-blue-600">Bit</span>Point
                 </div>
+                {/* Desktop Links */}
+                <div className="hidden md:flex ml-10 space-x-8">
+                  <a href="https://edgetech.co.ke" className="text-gray-700 hover:text-blue-600" target="_blank" rel="noopener noreferrer">
+                    CyberSecurity Services
+                  </a>
+                  <a href="#features" className="text-gray-700 hover:text-blue-600">
+                    Features
+                  </a>
+                </div>
               </div>
               <div className="flex items-center space-x-4">
                 <button className="text-gray-700 hover:text-blue-600">
