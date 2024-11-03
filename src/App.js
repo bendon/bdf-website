@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import NavbarWithCTA from './components/layout/NavbarWithCTA';
 import BitPointLandingPage from './pages/BitPointLandingPage';
 import AccountPage from './pages/AccountPage';
+import GetStartedPage from './pages/GetStartedPage';
 import SignInModal from './components/modals/SignInModal';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
       <NavbarWithCTA onSignInModalOpen={() => setShowSignInModal(true)} />
       <Routes>
         <Route path="/" element={<BitPointLandingPage />} />
+        <Route path="/get-started" element={<GetStartedPage />} />
         <Route 
           path="/account" 
           element={

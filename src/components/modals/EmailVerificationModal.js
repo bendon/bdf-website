@@ -1,285 +1,196 @@
-import React, { useState, useContext, useCallback, useEffect } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { UserContext } from '../../context/UserContext';
 import Modal from './Modal';
 import { submitEmail, verifyOTP } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
+import { Mail, Timer, AlertCircle, CheckCircle } from 'lucide-react';
 
-const EmailVerificationModal = ({
-  isOpen,
-  onClose,
-  transactionId,
-  mpesaCode,
-}) => {
+const EmailVerificationModal = ({ isOpen, onClose, transactionId, mpesaCode }) => {
   const { login } = useContext(UserContext);
-  const [step, setStep] = useState('EMAIL');
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [resendDisabled, setResendDisabled] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
+  const [formState, setFormState] = useState({
+    step: 'EMAIL',
+    email: '',
+    otp: '',
+    loading: false,
+    error: '',
+    success: '',
+    resendTimer: 0
+  });
 
-  useEffect(() => {
-    console.log('EmailVerificationModal Props:', {
-      isOpen,
-      transactionId,
-      mpesaCode
-    });
-  }, [isOpen, transactionId, mpesaCode]);
+  const { step, email, otp, loading, error, success, resendTimer } = formState;
 
-  // Reset resend timer
-  const startResendTimer = useCallback(() => {
-    setResendDisabled(true);
-    setResendTimer(30);
-    const timer = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setResendDisabled(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const updateFormState = (updates) => {
+    setFormState(prev => ({ ...prev, ...updates }));
+  };
 
-  // Handle email submission to request OTP
   const handleEmailSubmit = async () => {
-    // Debug logs
-    console.log('Submit Email Params:', {
-      email,
-      transactionId,
-      mpesaCode
-    });
-    // Validate required fields
-    if (!transactionId) {
-      console.error('Missing transactionId:', transactionId);
-      setError('Transaction ID is missing. Please try again.');
-      return;
-    }
-    
-    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      setError('Please enter a valid email address');
+    if (!transactionId || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      updateFormState({ 
+        error: !transactionId ? 'Transaction ID is missing' : 'Please enter a valid email' 
+      });
       return;
     }
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
+    updateFormState({ loading: true, error: '', success: '' });
 
     try {
-      // Add validation for transactionId
-      if (!transactionId) {
-        setError('Transaction ID is required');
-        return;
-      }
-    
       const response = await submitEmail(email, transactionId, mpesaCode);
-      console.log('Email submission response:', response);
       
-      // Check the nested status in response.message.status
       if (response?.message?.status === 'success') {
-        setSuccess(response.message.message || 'OTP sent to your email');
+        updateFormState({
+          success: response.message.message || 'OTP sent to your email',
+          step: 'OTP',
+          resendTimer: 30
+        });
+
+        // Start resend timer
+        const timer = setInterval(() => {
+          setFormState(prev => ({
+            ...prev,
+            resendTimer: prev.resendTimer > 0 ? prev.resendTimer - 1 : 0
+          }));
+        }, 1000);
         
-        if (step === 'OTP') {
-          startResendTimer();
-        } else {
-          setTimeout(() => {
-            setStep('OTP');
-            startResendTimer();
-          }, 1500);
-        }
-        
-        if (response.message.user_exists) {
-          console.log('Existing user detected:', response.message.user_exists);
-        }
+        setTimeout(() => clearInterval(timer), 30000);
       } else {
-        setError(response?.message?.message || 'Failed to send OTP. Please try again.');
+        throw new Error(response?.message?.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Email submission error:', error);
-      setError(
-        error instanceof Error 
-          ? error.message 
-          : 'Failed to process request. Please try again.'
-      );
+      updateFormState({ 
+        error: error.message || 'Failed to process request' 
+      });
     } finally {
-      setLoading(false);
+      updateFormState({ loading: false });
     }
   };
 
   const handleOTPVerification = async () => {
-    if (otp.length !== 6 || !/^\d+$/.test(otp)) {
-      setError('Please enter a valid 6-digit OTP');
+    if (!/^\d{6}$/.test(otp)) {
+      updateFormState({ error: 'Please enter a valid 6-digit OTP' });
       return;
     }
-  
-    setLoading(true);
-    setError('');
-    setSuccess('');
-  
+
+    updateFormState({ loading: true, error: '', success: '' });
+
     try {
       const response = await verifyOTP(email, otp, transactionId);
-      console.log('Response structure:', {
-        response,
-        messageStatus: response?.message?.status,
-        messageContent: response?.message?.message
-      });
       
-      // Updated condition to match API response structure
       if (response?.message?.status === 'success') {
-        setSuccess(
-          typeof response.message.message === 'string' 
-            ? response.message.message 
-            : 'Verification successful'
-        );
+        updateFormState({ 
+          success: response.message.message || 'Verification successful' 
+        });
         await login(email);
-        
         setTimeout(() => {
           navigate('/account');
           handleClose();
         }, 2000);
       } else {
-        setError(
-          typeof response?.message?.message === 'string' 
-            ? response.message.message 
-            : 'Invalid OTP. Please try again.'
-        );
+        throw new Error(response?.message?.message || 'Invalid OTP');
       }
     } catch (error) {
-      console.error('OTP verification error:', error);
-      setError(
-        error?.response?.data?.message || 
-        error?.message || 
-        'Failed to verify OTP. Please try again.'
-      );
+      updateFormState({ 
+        error: error.message || 'Failed to verify OTP' 
+      });
     } finally {
-      setLoading(false);
+      updateFormState({ loading: false });
     }
   };
 
   const handleClose = useCallback(() => {
-    setStep('EMAIL');
-    setEmail('');
-    setOtp('');
-    setError('');
-    setSuccess('');
-    setResendDisabled(false);
-    setResendTimer(0);
+    setFormState({
+      step: 'EMAIL',
+      email: '',
+      otp: '',
+      loading: false,
+      error: '',
+      success: '',
+      resendTimer: 0
+    });
     onClose();
   }, [onClose]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
-      <div className="p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          {step === 'EMAIL' ? 'Verify Your Email' : 'Enter OTP'}
-        </h2>
+      <div className="p-8 max-w-md w-full mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            {step === 'EMAIL' ? 
+              <Mail className="w-12 h-12 text-blue-600" /> : 
+              <Timer className="w-12 h-12 text-blue-600" />
+            }
+          </div>
+          <h2 className="text-2xl font-bold">
+            {step === 'EMAIL' ? 'Verify Your Email' : 'Enter Verification Code'}
+          </h2>
+          <p className="text-gray-600 mt-2">
+            {step === 'EMAIL' ? 
+              'Please verify your email to complete the purchase process' : 
+              `We've sent a code to ${email}`}
+          </p>
+        </div>
 
-        <p className="text-sm text-gray-600 mb-4">
-          Please verify your email to complete the purchase process
-        </p>
-
-        {error && (
-          <div className="bg-red-50 text-red-500 p-3 rounded mb-4" role="alert">
-            {error}
+        {/* Error/Success Messages */}
+        {(error || success) && (
+          <div className={`flex items-center ${error ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'} p-4 rounded-lg mb-6`}>
+            {error ? <AlertCircle className="w-5 h-5 mr-2" /> : <CheckCircle className="w-5 h-5 mr-2" />}
+            <p className="text-sm">{error || success}</p>
           </div>
         )}
 
-        {success && (
-          <div className="bg-green-50 text-green-500 p-3 rounded mb-4" role="status">
-            {success}
-          </div>
-        )}
+        {/* Form */}
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          step === 'EMAIL' ? handleEmailSubmit() : handleOTPVerification();
+        }}>
+          {step === 'EMAIL' ? (
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => updateFormState({ email: e.target.value.trim() })}
+              className="w-full h-14 px-4 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 mb-6"
+              placeholder="Enter your email"
+              disabled={loading}
+              required
+            />
+          ) : (
+            <input
+              type="text"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => updateFormState({ otp: e.target.value.replace(/\D/g, '') })}
+              className="w-full h-14 px-4 text-center text-xl font-bold tracking-widest border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 mb-6"
+              placeholder="Enter 6-digit code"
+              disabled={loading}
+              required
+            />
+          )}
 
-        {step === 'EMAIL' ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleEmailSubmit();
-            }}
-            className="space-y-4"
+          <button
+            type="submit"
+            disabled={loading || (step === 'EMAIL' ? !email : otp.length !== 6)}
+            className="w-full h-14 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 mb-4"
           >
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value.trim())}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                required
-                disabled={loading}
-                placeholder="Enter your email"
-                autoComplete="email"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                We'll send a verification code to this email
-              </p>
+            {loading ? (step === 'EMAIL' ? 'Sending...' : 'Verifying...') : 
+             (step === 'EMAIL' ? 'Continue' : 'Verify Code')}
+          </button>
+
+          {step === 'OTP' && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleEmailSubmit}
+                disabled={loading || resendTimer > 0}
+                className="text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resendTimer > 0 ? 
+                  `Resend code in ${resendTimer}s` : 
+                  "Didn't receive the code? Resend"}
+              </button>
             </div>
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition duration-300 disabled:opacity-50"
-              disabled={loading || !email}
-            >
-              {loading ? 'Sending...' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleOTPVerification();
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
-                Enter OTP
-              </label>
-              <input
-                id="otp"
-                type="text"
-                inputMode="numeric"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                required
-                disabled={loading}
-                maxLength={6}
-                pattern="\d{6}"
-                placeholder="Enter 6-digit OTP"
-                autoComplete="one-time-code"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Check your email {email} for the verification code
-              </p>
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition duration-300 disabled:opacity-50"
-              disabled={loading || otp.length !== 6}
-            >
-              {loading ? 'Verifying...' : 'Verify OTP'}
-            </button>
-            
-            <button
-              type="button"
-              onClick={handleEmailSubmit}
-              className="w-full text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || resendDisabled}
-            >
-              {resendDisabled 
-                ? `Resend OTP (${resendTimer}s)` 
-                : 'Resend OTP'}
-            </button>
-          </form>
-        )}
+          )}
+        </form>
       </div>
     </Modal>
   );
