@@ -4,7 +4,7 @@ import axios from 'axios';
 const API_TOKEN = '195026a7a3dc994:06107f998d77f1b';
 
 
-export const BASE_URL = '/api';
+export const BASE_URL = 'https://bdf.bitpoint.co.ke/api';
 export const PAYMENT_STATUS = {
   COMPLETED: 'Completed',
   PENDING: 'Pending',
