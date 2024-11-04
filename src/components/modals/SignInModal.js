@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import Modal from './Modal';
 import { useNavigate } from 'react-router-dom';
-import { submitEmail, verifyOTP } from '../../services/api';
+import { submitEmailSignin, verifyOTPSignin } from '../../services/api';  // Updated imports
 import { UserContext } from '../../context/UserContext';
 import { Mail, Timer, AlertCircle, ArrowRight } from 'lucide-react';
 
@@ -27,7 +27,7 @@ const SignInModal = ({ isOpen, onClose }) => {
     updateFormState({ loading: true, error: '' });
 
     try {
-      const response = await submitEmail(formState.email);
+      const response = await submitEmailSignin(formState.email);  // Updated function call
       
       if (response.status === 'error') {
         throw new Error(response.message || 'Failed to send OTP');
@@ -35,10 +35,10 @@ const SignInModal = ({ isOpen, onClose }) => {
       
       updateFormState({ 
         step: 'OTP',
-        loading: false
+        loading: false,
+        error: ''
       });
       
-      // Focus first OTP input after transition
       setTimeout(() => {
         if (otpRefs[0].current) {
           otpRefs[0].current.focus();
@@ -46,13 +46,13 @@ const SignInModal = ({ isOpen, onClose }) => {
       }, 100);
       
     } catch (error) {
+      console.error('Email submission error:', error);
       updateFormState({
         loading: false,
-        error: error.message || 'An error occurred'
+        error: error.message || 'An error occurred while sending OTP'
       });
     }
   };
-
   const handleOTPChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
 
@@ -71,21 +71,32 @@ const SignInModal = ({ isOpen, onClose }) => {
       otpRefs[index - 1].current.focus();
     }
   };
-
   const handleOTPSubmit = async (e) => {
     e.preventDefault();
-    const otpString = formState.otp.join('');
     
+    const otpString = formState.otp.join('');
     if (otpString.length !== 6) {
       updateFormState({ error: 'Please enter a valid 6-digit OTP' });
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otpString)) {
+      updateFormState({ error: 'OTP must contain only numbers' });
       return;
     }
 
     updateFormState({ loading: true, error: '' });
 
     try {
-      const response = await verifyOTP(formState.email, otpString);
+      console.log('Submitting signin OTP:', {
+        email: formState.email,
+        otp: otpString
+      });
+
+      const response = await verifyOTPSignin(formState.email, otpString);  // Updated function call
       
+      console.log('Signin OTP verification response:', response);
+
       if (response.status === 'error') {
         throw new Error(response.message || 'Invalid OTP');
       }
@@ -106,13 +117,24 @@ const SignInModal = ({ isOpen, onClose }) => {
         throw new Error('Failed to initialize session');
       }
     } catch (error) {
+      console.error('OTP verification error:', error);
       updateFormState({
         loading: false,
-        error: error.message || 'An error occurred'
+        error: error.message || 'Failed to verify OTP'
       });
+      
+      setFormState(prev => ({
+        ...prev,
+        otp: ['', '', '', '', '', '']
+      }));
+      
+      if (otpRefs[0].current) {
+        otpRefs[0].current.focus();
+      }
     }
   };
 
+  // Rest of the component remains the same
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-8 max-w-md w-full mx-auto">
@@ -179,6 +201,7 @@ const SignInModal = ({ isOpen, onClose }) => {
                   onChange={(e) => handleOTPChange(index, e.target.value)}
                   onKeyDown={(e) => handleOTPKeyDown(index, e)}
                   className="w-12 h-14 text-center text-xl font-bold border-2 rounded-lg border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                  disabled={formState.loading}
                 />
               ))}
             </div>
@@ -194,7 +217,8 @@ const SignInModal = ({ isOpen, onClose }) => {
             <button
               type="button"
               onClick={handleEmailSubmit}
-              className="w-full text-blue-600 hover:text-blue-700 text-sm font-medium"
+              disabled={formState.loading}
+              className="w-full text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Resend verification code
             </button>

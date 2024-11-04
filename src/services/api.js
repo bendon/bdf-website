@@ -130,6 +130,45 @@ export const verifyOTP = async (email, otp, transactionId) => {
   }
 };
 
+export const submitEmailSignin = async (email) => {
+  logServiceCall('submitEmailSignin', { email });
+  
+  try {
+    const response = await apiClient.post(API_PATHS.AUTH.SUBMIT_EMAIL_SIGNIN, {
+      email
+    });
+    
+    console.log('💫 Submit Email Signin Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('⚠️ Submit Email Signin Error:', {
+      message: error.message,
+      response: error.response?.data
+    });
+    throw error;
+  }
+};
+
+export const verifyOTPSignin = async (email, otp) => {
+  logServiceCall('verifyOTPSignin', { email, otp });
+  
+  try {
+    const response = await apiClient.post(API_PATHS.AUTH.VERIFY_OTP_SIGNIN, {
+      email,
+      otp
+    });
+    
+    console.log('💫 Verify OTP Signin Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('⚠️ Verify OTP Signin Error:', {
+      message: error.message,
+      response: error.response?.data
+    });
+    throw error;
+  }
+};
+
 // Add a test function to verify the API connection
 export const testApiConnection = async () => {
   logServiceCall('testApiConnection');

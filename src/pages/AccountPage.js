@@ -69,6 +69,9 @@ const AccountPage = () => {
       console.error('Failed to copy:', err);
     }
   };
+    const handleClick = () => {
+      window.location.href = 'https://play.google.com/store/apps/details?id=com.bitdefender.security';
+    };
 
   useEffect(() => {
     const fetchLicenseData = async () => {
@@ -170,9 +173,11 @@ const AccountPage = () => {
               <div className="bg-blue-50 rounded-lg p-4">
                 <h3 className="font-medium text-blue-900 mb-4">Quick Actions</h3>
                 <div className="space-y-2">
-                  <button className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2">
+                  <button 
+                    onClick={handleClick}
+                    className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2">
                     <Download className="h-4 w-4" />
-                    <span>Download Certificate</span>
+                    <span>Download Bitdefender</span>
                   </button>
                   <button className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2">
                     <Mail className="h-4 w-4" />

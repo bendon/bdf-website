@@ -16,12 +16,16 @@ export const API_PATHS = {
     PROCESS: '/method/eclbitpoint.api.license_purchase.process_purchase',
     STATUS: '/method/transaction_status',
     SUBMIT_EMAIL: '/method/email_otp',
-    VERIFY_OTP: '/method/eclbitpoint.api.license_purchase.verify_otp',
+    VERIFY_OTP: '/method/eclbitpoint.api.license_purchase.verify_otp', 
     VERIFY_MPESA: '/method/verify_mpesa'
   },
   LICENSE: {
     GET_ALL: '/method/get_licenses',
     GET_PAYMENTS: '/method/get_license_payments'
+  },
+  AUTH: {
+    SUBMIT_EMAIL_SIGNIN: '/method/email_otp_signin',
+    VERIFY_OTP_SIGNIN: '/method/verify_otpsignin'
   }
 };
 

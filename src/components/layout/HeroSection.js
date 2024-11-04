@@ -11,7 +11,7 @@ const HeroSection = ({ handleBuyNow }) => (
         <span className="block">Mobile Security</span>
       </h1>
       <p className="mb-6 text-gray-600">
-        Get top-tier mobile protection for Android and iOS for just <span className="font-bold">Ksh. 350</span> per year.
+        Get top-tier mobile protection for <span className="font-bold">Android</span> for just <span className="font-bold">Ksh. 350</span> per year.
       </p>
       <button 
         onClick={handleBuyNow}

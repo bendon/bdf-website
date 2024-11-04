@@ -1,11 +1,13 @@
 // src/components/layout/NavbarWithCTA.js
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../context/UserContext';
+import PurchaseModal from '../modals/PurchaseModal';
 
 const NavbarWithCTA = ({ onSignInModalOpen }) => {
   const navigate = useNavigate();
-  const { user, logout } = useContext(UserContext); // Make sure this line exists
+  const { user, logout } = useContext(UserContext);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   console.log('Current user state in navbar:', user);
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -14,6 +16,14 @@ const NavbarWithCTA = ({ onSignInModalOpen }) => {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+  const handleBuyNow = () => {
+    setShowPurchaseModal(true);
+  };
+  const handlePurchaseSuccess = () => {
+    // Handle any post-purchase actions here
+    setShowPurchaseModal(false);
+    // Maybe show a success message or redirect
   };
 
   return (
@@ -47,6 +57,9 @@ const NavbarWithCTA = ({ onSignInModalOpen }) => {
                 <a href="/#features" className="text-gray-700 hover:text-blue-600">
                   Features
                 </a>
+                <a href="/get-started" className="text-gray-700 hover:text-blue-600">
+                  Purchase Guide
+                </a>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -74,10 +87,10 @@ const NavbarWithCTA = ({ onSignInModalOpen }) => {
                     Sign In
                   </button>
                   <button
-                    onClick={() => navigate('/get-started')}
+                    onClick={handleBuyNow}
                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition duration-300"
                   >
-                    Get Started
+                    Buy Now
                   </button>
                 </>
               )}
@@ -89,6 +102,13 @@ const NavbarWithCTA = ({ onSignInModalOpen }) => {
 
     </div>
     <div className="h-16"></div>
+       {/* Purchase Modal */}
+       <PurchaseModal
+        isOpen={showPurchaseModal}
+        onClose={() => setShowPurchaseModal(false)}
+        onSuccess={handlePurchaseSuccess}
+      />
+
     </>
     
   );
