@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Modal from '../modals/Modal';
 import { processPurchase, getTransactionStatus, verifyMpesaCode } from '../../services/api';
 import { PAYMENT_STATUS } from '../../config/apiConfig';
 import EmailVerificationModal from '../modals/EmailVerificationModal';
+import { UserContext } from '../../context/UserContext';
 import { AlertCircle, CheckCircle, Timer } from 'lucide-react';
 
 const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
+  const { user } = useContext(UserContext);
   const [formState, setFormState] = useState({
     phoneNumber: '+254',
     purchaseCode: '',
@@ -22,12 +24,11 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   });
 
   const updateFormState = (updates) => {
-    setFormState(prev => ({ ...prev, ...updates }));
+    setFormState((prev) => ({ ...prev, ...updates }));
   };
 
   const [pollTimer, setPollTimer] = useState({ interval: null, timeout: null });
 
-  // Cleanup timers
   useEffect(() => {
     return () => {
       if (pollTimer.interval) clearInterval(pollTimer.interval);
@@ -35,7 +36,6 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     };
   }, [pollTimer]);
 
-  // Countdown timer
   useEffect(() => {
     let countdownInterval;
     if (formState.loading && formState.remainingTime > 0) {
@@ -47,10 +47,7 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   }, [formState.loading, formState.remainingTime]);
 
   const startPolling = (transactionId, checkoutRequestId) => {
-    updateFormState({ 
-      status: PAYMENT_STATUS.PROCESSING, 
-      remainingTime: 60 
-    });
+    updateFormState({ status: PAYMENT_STATUS.PROCESSING, remainingTime: 60 });
 
     const interval = setInterval(async () => {
       try {
@@ -60,15 +57,9 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         if (status === 'COMPLETED') {
           clearInterval(interval);
           clearTimeout(pollTimer.timeout);
-          updateFormState({
-            loading: false,
-            status: PAYMENT_STATUS.COMPLETED,
-            error: ''
-          });
           handleSuccess(response.message.data);
         }
       } catch (error) {
-        console.error('Status check error:', error);
         if (formState.remainingTime <= 0) {
           clearInterval(interval);
           handleTimeout();
@@ -84,11 +75,11 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     if (pollTimer.interval) clearInterval(pollTimer.interval);
     if (pollTimer.timeout) clearTimeout(pollTimer.timeout);
     setPollTimer({ interval: null, timeout: null });
-    
+
     updateFormState({
       loading: false,
       error: 'Payment verification timed out. Please select an option below:',
-      timeoutAction: 'choose'
+      timeoutAction: 'choose',
     });
   };
 
@@ -97,23 +88,18 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     updateFormState({ loading: true, error: '', status: null });
 
     try {
-      const response = await processPurchase(
-        formState.phoneNumber,
-        formState.purchaseCode
-      );
-      
+      const response = await processPurchase(formState.phoneNumber, formState.purchaseCode);
+
       if (response.message?.status === 'success') {
         const { transaction_id, checkout_request_id } = response.message;
         updateFormState({ transactionId: transaction_id, checkoutRequestId: checkout_request_id });
+        localStorage.setItem('purchaseTransaction', JSON.stringify({ transaction_id, mpesaCode: '' }));
         startPolling(transaction_id, checkout_request_id);
       } else {
         throw new Error(response.message?.message || 'Failed to initiate payment');
       }
     } catch (error) {
-      updateFormState({
-        loading: false,
-        error: error.message || 'An error occurred'
-      });
+      updateFormState({ loading: false, error: error.message || 'An error occurred' });
     }
   };
 
@@ -123,29 +109,25 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
 
     try {
       const response = await verifyMpesaCode(formState.transactionId, formState.mpesaCode);
-      
-      if (response.message?.status === 'success' && 
-          response.message.data?.transaction_status?.toLowerCase() === 'completed') {
+      if (response.message?.status === 'success' && response.message.data?.transaction_status?.toLowerCase() === 'completed') {
         handleSuccess(response.message.data);
       } else {
         throw new Error('Payment verification failed. Please check the code and try again.');
       }
     } catch (error) {
-      updateFormState({
-        loading: false,
-        error: error.message || 'Failed to verify M-PESA code'
-      });
+      updateFormState({ loading: false, error: error.message || 'Failed to verify M-PESA code' });
     }
   };
 
   const handleSuccess = (paymentDetails) => {
+    localStorage.setItem('purchaseTransaction', JSON.stringify({ transaction_id: formState.transactionId, mpesaCode: paymentDetails.mpesa_receipt }));
     updateFormState({
       loading: false,
       status: PAYMENT_STATUS.COMPLETED,
       error: '',
       mpesaCode: paymentDetails.mpesa_receipt || formState.mpesaCode,
       showEmailVerification: true,
-      showMpesaCodeEntry: false
+      showMpesaCodeEntry: false,
     });
   };
 
@@ -158,11 +140,11 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       error: '',
       status: null,
       timeoutAction: null,
-      showMpesaCodeEntry: false
+      showMpesaCodeEntry: false,
     });
   };
 
-  // Render functions
+  // Render purchase form
   const renderForm = () => (
     <form onSubmit={handlePurchaseSubmit} className="space-y-4">
       {['phoneNumber', 'purchaseCode'].map((field) => (
@@ -192,12 +174,11 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     </form>
   );
 
+  // Render M-Pesa code entry form
   const renderMpesaCodeEntry = () => (
     <form onSubmit={handleMpesaCodeVerify} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          M-PESA Transaction Code
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">M-PESA Transaction Code</label>
         <input
           type="text"
           value={formState.mpesaCode}
@@ -240,63 +221,27 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
             </div>
           )}
 
-          {formState.loading && (
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-gray-600">Processing payment...</span>
-                <span className="text-sm font-medium">{formState.remainingTime}s</span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full">
-                <div
-                  className="h-2 bg-blue-600 rounded-full transition-all duration-1000"
-                  style={{ width: `${(formState.remainingTime / 60) * 100}%` }}
-                />
-              </div>
-            </div>
+          {!user && formState.showEmailVerification ? (
+            <EmailVerificationModal
+              isOpen={formState.showEmailVerification}
+              onClose={() => {
+                updateFormState({ showEmailVerification: false });
+                onSuccess();
+              }}
+              transactionId={formState.transactionId}
+              mpesaCode={formState.mpesaCode}
+            />
+          ) : (
+            <>
+              {formState.showMpesaCodeEntry
+                ? renderMpesaCodeEntry()
+                : !formState.timeoutAction &&
+                  formState.status !== PAYMENT_STATUS.COMPLETED &&
+                  renderForm()}
+            </>
           )}
-
-          {formState.timeoutAction === 'choose' && (
-            <div className="space-y-4">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    updateFormState({ loading: true, error: '' });
-                    handleMpesaCodeVerify();
-                  }}
-                  className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                >
-                  Check Again
-                </button>
-                <button
-                  onClick={() => updateFormState({ showMpesaCodeEntry: true, timeoutAction: null })}
-                  className="flex-1 h-12 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                >
-                  Enter M-PESA Code
-                </button>
-              </div>
-              <button
-                onClick={resetForm}
-                className="w-full h-12 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
-              >
-                Start Over
-              </button>
-            </div>
-          )}
-
-          {formState.showMpesaCodeEntry ? renderMpesaCodeEntry() : 
-           !formState.timeoutAction && formState.status !== PAYMENT_STATUS.COMPLETED && renderForm()}
         </div>
       </Modal>
-
-      <EmailVerificationModal
-        isOpen={formState.showEmailVerification}
-        onClose={() => {
-          updateFormState({ showEmailVerification: false });
-          onSuccess();
-        }}
-        transactionId={formState.transactionId}
-        mpesaCode={formState.mpesaCode}
-      />
     </>
   );
 };

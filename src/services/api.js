@@ -169,6 +169,27 @@ export const verifyOTPSignin = async (email, otp) => {
   }
 };
 
+export const processGoogleLogin = async (email, transactionId) => {
+  logServiceCall('processGoogleLogin', { email, transactionId });
+
+  try {
+    const response = await apiClient.post(API_PATHS.LICENSE_PURCHASE.PROCESS_GOOGLE_LOGIN, {
+      email,
+      transaction_id: transactionId,
+    });
+
+    console.log('💫 Process Google Login Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('⚠️ Process Google Login Error:', {
+      message: error.message,
+      response: error.response?.data
+    });
+    throw error;
+  }
+};
+
+
 // Add a test function to verify the API connection
 export const testApiConnection = async () => {
   logServiceCall('testApiConnection');

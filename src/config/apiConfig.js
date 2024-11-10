@@ -17,7 +17,8 @@ export const API_PATHS = {
     STATUS: '/method/transaction_status',
     SUBMIT_EMAIL: '/method/email_otp',
     VERIFY_OTP: '/method/eclbitpoint.api.license_purchase.verify_otp', 
-    VERIFY_MPESA: '/method/verify_mpesa'
+    VERIFY_MPESA: '/method/verify_mpesa',
+    PROCESS_GOOGLE_LOGIN: '/method/eclbitpoint.api.license_purchase.process_google_login'
   },
   LICENSE: {
     GET_ALL: '/method/get_licenses',

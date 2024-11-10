@@ -1,9 +1,10 @@
 import React, { useState, useContext } from 'react';
-import Modal from './Modal';
 import { useNavigate } from 'react-router-dom';
-import { submitEmailSignin, verifyOTPSignin } from '../../services/api';  // Updated imports
+import { useGoogleLogin } from '@react-oauth/google';
+import Modal from './Modal';
+import { submitEmailSignin, verifyOTPSignin } from '../../services/api';
 import { UserContext } from '../../context/UserContext';
-import { Mail, Timer, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Timer, AlertCircle, ArrowRight, Loader } from 'lucide-react';
 
 const SignInModal = ({ isOpen, onClose }) => {
   const [formState, setFormState] = useState({
@@ -11,7 +12,10 @@ const SignInModal = ({ isOpen, onClose }) => {
     email: '',
     otp: ['', '', '', '', '', ''],
     loading: false,
-    error: ''
+    error: '',
+    resendDisabled: false,
+    resendCountdown: 0,
+    googleLoading: false,
   });
 
   const navigate = useNavigate();
@@ -22,37 +26,122 @@ const SignInModal = ({ isOpen, onClose }) => {
     setFormState(prev => ({ ...prev, ...updates }));
   };
 
+  const handleClose = () => {
+    // Reset form state when modal closes
+    updateFormState({
+      step: 'EMAIL',
+      email: '',
+      otp: ['', '', '', '', '', ''],
+      loading: false,
+      error: '',
+      resendDisabled: false,
+      resendCountdown: 0,
+      googleLoading: false,
+    });
+    onClose();
+  };
+
+  const handleResendTimer = () => {
+    updateFormState({
+      resendDisabled: true,
+      resendCountdown: 30,
+    });
+
+    const timer = setInterval(() => {
+      setFormState(prev => {
+        const newCount = prev.resendCountdown - 1;
+        if (newCount <= 0) {
+          clearInterval(timer);
+          return { ...prev, resendDisabled: false, resendCountdown: 0 };
+        }
+        return { ...prev, resendCountdown: newCount };
+      });
+    }, 1000);
+  };
+
+  // Google Login Integration with enhanced error handling
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (response) => {
+      try {
+        updateFormState({ googleLoading: true, error: '' });
+
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: {
+            Authorization: `Bearer ${response.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          mode: 'cors'
+        });
+
+        if (!userInfoResponse.ok) {
+          throw new Error(`Failed to fetch user information: ${userInfoResponse.statusText}`);
+        }
+
+        const userInfo = await userInfoResponse.json();
+        const loginSuccess = await login(userInfo.email);
+
+        if (!loginSuccess) {
+          throw new Error('Failed to initialize session');
+        }
+
+        handleClose();
+        navigate('/account');
+      } catch (err) {
+        console.error('Login error:', err);
+        updateFormState({
+          error: err.message || 'Failed to sign in with Google. Please try again.',
+          googleLoading: false,
+        });
+      } finally {
+        updateFormState({ googleLoading: false });
+      }
+    },
+    onError: (errorResponse) => {
+      console.error('Google login error:', errorResponse);
+      updateFormState({
+        error: 'Failed to sign in with Google. Please try again.',
+        googleLoading: false,
+      });
+    },
+  });
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     updateFormState({ loading: true, error: '' });
 
     try {
-      const response = await submitEmailSignin(formState.email);  // Updated function call
-      
+      const response = await submitEmailSignin(formState.email);
+
       if (response.status === 'error') {
         throw new Error(response.message || 'Failed to send OTP');
       }
-      
-      updateFormState({ 
+
+      updateFormState({
         step: 'OTP',
         loading: false,
         error: ''
       });
-      
+
+      handleResendTimer();
+
+      // Focus first OTP input after transition
       setTimeout(() => {
         if (otpRefs[0].current) {
           otpRefs[0].current.focus();
         }
       }, 100);
-      
+
     } catch (error) {
       console.error('Email submission error:', error);
       updateFormState({
         loading: false,
         error: error.message || 'An error occurred while sending OTP'
       });
+    } finally {
+      updateFormState({ loading: false });
     }
   };
+
   const handleOTPChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
 
@@ -71,9 +160,10 @@ const SignInModal = ({ isOpen, onClose }) => {
       otpRefs[index - 1].current.focus();
     }
   };
+
   const handleOTPSubmit = async (e) => {
     e.preventDefault();
-    
+
     const otpString = formState.otp.join('');
     if (otpString.length !== 6) {
       updateFormState({ error: 'Please enter a valid 6-digit OTP' });
@@ -88,30 +178,16 @@ const SignInModal = ({ isOpen, onClose }) => {
     updateFormState({ loading: true, error: '' });
 
     try {
-      console.log('Submitting signin OTP:', {
-        email: formState.email,
-        otp: otpString
-      });
-
-      const response = await verifyOTPSignin(formState.email, otpString);  // Updated function call
-      
-      console.log('Signin OTP verification response:', response);
+      const response = await verifyOTPSignin(formState.email, otpString);
 
       if (response.status === 'error') {
         throw new Error(response.message || 'Invalid OTP');
       }
 
       const loginSuccess = await login(formState.email);
-      
+
       if (loginSuccess) {
-        updateFormState({
-          step: 'EMAIL',
-          email: '',
-          otp: ['', '', '', '', '', ''],
-          loading: false,
-          error: ''
-        });
-        onClose();
+        handleClose();
         navigate('/account');
       } else {
         throw new Error('Failed to initialize session');
@@ -122,46 +198,78 @@ const SignInModal = ({ isOpen, onClose }) => {
         loading: false,
         error: error.message || 'Failed to verify OTP'
       });
-      
+
       setFormState(prev => ({
         ...prev,
         otp: ['', '', '', '', '', '']
       }));
-      
+
       if (otpRefs[0].current) {
         otpRefs[0].current.focus();
       }
+    } finally {
+      updateFormState({ loading: false });
     }
   };
 
-  // Rest of the component remains the same
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={handleClose}>
       <div className="p-8 max-w-md w-full mx-auto">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            {formState.step === 'EMAIL' ? 
-              <Mail className="w-12 h-12 text-blue-600" /> : 
-              <Timer className="w-12 h-12 text-blue-600" />
-            }
+            <Mail className="w-12 h-12 text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold mb-2">
-            {formState.step === 'EMAIL' ? 'Sign In with Email' : 'Enter Verification Code'}
+            Sign In to BitPoint
           </h2>
           <p className="text-gray-600">
-            {formState.step === 'EMAIL' 
-              ? "We'll send you a verification code to sign in"
-              : `We've sent a code to ${formState.email}`}
+            Choose your preferred sign-in method below
           </p>
         </div>
 
         {formState.error && (
-          <div className="flex items-center bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+          <div className="flex items-center bg-red-50 text-red-600 p-4 rounded-lg mb-6" role="alert">
             <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             <p className="text-sm">{formState.error}</p>
           </div>
         )}
 
+        {/* Google Sign-in Button */}
+        <button
+          onClick={() => googleLogin()}
+          disabled={formState.googleLoading || formState.loading}
+          className="w-full h-14 flex items-center justify-center gap-3 bg-white border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200 mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Sign in with Google"
+        >
+          {formState.googleLoading ? (
+            <>
+              <Loader className="w-5 h-5 animate-spin" />
+              <span className="font-medium">Signing in...</span>
+            </>
+          ) : (
+            <>
+              <img
+                src="/google-logo.svg"
+                alt=""
+                className="w-6 h-6"
+                aria-hidden="true"
+              />
+              <span className="font-medium">Continue with Google</span>
+            </>
+          )}
+        </button>
+
+        {/* Divider */}
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">or sign in with email</span>
+          </div>
+        </div>
+
+        {/* Email Sign-in Form */}
         {formState.step === 'EMAIL' ? (
           <form onSubmit={handleEmailSubmit} className="space-y-6">
             <div>
@@ -205,7 +313,7 @@ const SignInModal = ({ isOpen, onClose }) => {
                 />
               ))}
             </div>
-            
+
             <button
               type="submit"
               disabled={formState.loading || formState.otp.some(digit => !digit)}
@@ -214,14 +322,20 @@ const SignInModal = ({ isOpen, onClose }) => {
               {formState.loading ? 'Verifying...' : 'Sign In'}
             </button>
 
-            <button
-              type="button"
-              onClick={handleEmailSubmit}
-              disabled={formState.loading}
-              className="w-full text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Resend verification code
-            </button>
+            {formState.resendDisabled ? (
+              <p className="text-sm text-gray-500 text-center mt-4">
+                Resend available in {formState.resendCountdown}s
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEmailSubmit}
+                disabled={formState.loading}
+                className="w-full text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+              >
+                Resend verification code
+              </button>
+            )}
           </form>
         )}
       </div>
