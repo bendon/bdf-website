@@ -92,8 +92,6 @@ const BitPointLandingPage = () => {
         loading={loading}
         error={error}
       />
-
-      <Footer />
     </div>
   );
 };
