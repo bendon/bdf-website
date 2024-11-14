@@ -3,7 +3,6 @@ import axios from 'axios';
 
 const API_TOKEN = '195026a7a3dc994:06107f998d77f1b';
 
-
 export const BASE_URL = 'https://bdf.bitpoint.co.ke/api';
 export const PAYMENT_STATUS = {
   COMPLETED: 'Completed',
@@ -15,7 +14,7 @@ export const API_PATHS = {
   LICENSE_PURCHASE: {
     PROCESS: '/method/eclbitpoint.api.license_purchase.process_purchase',
     STATUS: '/method/transaction_status',
-    SUBMIT_EMAIL: '/method/email_otp',
+    SUBMIT_EMAIL: '/method/eclbitpoint.api.license_purchase.submit_email',
     VERIFY_OTP: '/method/eclbitpoint.api.license_purchase.verify_otp', 
     VERIFY_MPESA: '/method/verify_mpesa',
     PROCESS_GOOGLE_LOGIN: '/method/eclbitpoint.api.license_purchase.process_google_login'

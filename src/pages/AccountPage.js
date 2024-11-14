@@ -10,7 +10,9 @@ import {
   Phone,
   Mail,
   AlertCircle,
-  Smartphone
+  Smartphone,
+  Plus,
+  User
 } from 'lucide-react';
 import { UserContext } from '../context/UserContext';
 import LicenseService from '../services/licenseService';
@@ -76,12 +78,11 @@ const AccountPage = () => {
     window.location.href = 'https://play.google.com/store/apps/details?id=com.bitdefender.security';
   };
 
-  // Function to handle sending the email
   const handleEmailLicense = async () => {
-    if (!selectedLicense) return;
+    if (!selectedLicense || !user?.email) return;
 
     try {
-      const response = await fetch('/api/method/eclbitpoint.api.license_purchase.send_license_email', {
+      const response = await fetch('/api/method/eclbitpoint.api.license_purchase.send_license_details', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -89,40 +90,59 @@ const AccountPage = () => {
         body: JSON.stringify({
           email: user.email,
           license_key: selectedLicense.license_key,
+          transaction_id: selectedLicense.payment_details?.transaction_id,
+          mpesa_code: selectedLicense.payment_details?.mpesa_receipt
         }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.status === "success") {
-        console.log('License details emailed successfully');
-        alert('License details have been emailed successfully.');
+        alert(`License details have been sent to ${user.email}`);
       } else {
-        throw new Error(data.message || 'Failed to email license details');
+        throw new Error(data.message || 'Failed to send license details');
       }
     } catch (error) {
-      console.error('Error sending email:', error);
-      alert('Failed to email license details. Please try again later.');
+      console.error('Error sending license details:', error);
+      alert('Failed to send license details. Please try again later.');
     }
   };
 
   const fetchLicenseData = async () => {
+    if (!user?.email) {
+      setError('No user email found');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await LicenseService.getLicenses(user?.email);
-      const licenseData = response?.message?.data;
+      const response = await LicenseService.getLicenses(user.email);
+      console.log('License data:', response); // Debug log
 
-      if (licenseData && Array.isArray(licenseData)) {
+      if (response?.message?.data && Array.isArray(response.message.data)) {
+        const licenseData = response.message.data;
         setLicenses(licenseData);
-        setSelectedLicense(licenseData[0]);
+        
+        // If we have a selected license, try to keep it selected
+        if (selectedLicense) {
+          const currentLicense = licenseData.find(l => l.license_key === selectedLicense.license_key);
+          setSelectedLicense(currentLicense || licenseData[0]);
+        } else {
+          setSelectedLicense(licenseData[0]);
+        }
       } else {
         setError('No active licenses found');
+        setLicenses([]);
+        setSelectedLicense(null);
       }
     } catch (err) {
       console.error('Error fetching licenses:', err);
       setError(err?.message || 'Failed to fetch license data');
+      setLicenses([]);
+      setSelectedLicense(null);
     } finally {
       setLoading(false);
     }
@@ -135,7 +155,7 @@ const AccountPage = () => {
   }, [user?.email]);
 
   const handlePurchaseSuccess = () => {
-    // Refresh license data after successful purchase
+    setShowPurchaseModal(false);
     fetchLicenseData();
   };
 
@@ -151,6 +171,21 @@ const AccountPage = () => {
     return (
       <>
         <div className="min-h-screen bg-gray-50 pt-8">
+          {/* User Profile Section */}
+          <div className="max-w-4xl mx-auto mb-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-blue-100 p-3 rounded-full">
+                  <User className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">{user?.email}</h2>
+                  <p className="text-sm text-gray-600">Account Status: <StatusBadge status="Active" /></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-6">
             <div className="flex flex-col items-center p-6 text-center">
               <div className="mb-4">
@@ -199,46 +234,77 @@ const AccountPage = () => {
             </div>
           </div>
         </div>
-
-        <PurchaseModal 
-          isOpen={showPurchaseModal}
-          onClose={() => setShowPurchaseModal(false)}
-          onSuccess={handlePurchaseSuccess}
-        />
       </>
     );
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 pt-12">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* User Profile Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="bg-blue-100 p-3 rounded-full">
+                <User className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900">{user?.email}</h2>
+                <div className="flex items-center space-x-4 mt-1">
+                  <p className="text-sm text-gray-600">Account Status: <StatusBadge status="Active" /></p>
+                  <p className="text-sm text-gray-600">Total Licenses: {licenses.length}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* License Status Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">License Status</h2>
-              <StatusBadge status="Assigned" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-xl font-semibold text-gray-900">License Status</h2>
+                  <button 
+                    onClick={() => setShowPurchaseModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Buy Another License</span>
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600">
+                  You have {licenses.length} license{licenses.length !== 1 ? 's' : ''} associated with your account
+                </p>
+              </div>
             </div>
 
-            {licenses.length > 1 && (
-              <div className="mb-4">
-                <select
-                  className="w-full p-2 border border-gray-200 rounded-lg"
-                  value={selectedLicense?.license_key}
-                  onChange={(e) => {
-                    const selected = licenses.find(l => l.license_key === e.target.value);
-                    if (selected) setSelectedLicense(selected);
-                  }}
-                >
-                  {licenses.map(license => (
-                    <option key={license.license_key} value={license.license_key}>
-                      License {license.masked_license_key} - Assigned
-                    </option>
-                  ))}
-                </select>
+            {licenses.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select License
+                </label>
+                <div className="relative">
+                  <select
+                    className="w-full p-3 bg-white border border-gray-200 rounded-lg appearance-none pr-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    value={selectedLicense?.license_key}
+                    onChange={(e) => {
+                      const selected = licenses.find(l => l.license_key === e.target.value);
+                      if (selected) setSelectedLicense(selected);
+                    }}
+                  >
+                    {licenses.map(license => (
+                      <option key={license.license_key} value={license.license_key}>
+                        License {license.masked_license_key} - {license.status || 'Active'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
-            
+
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <DetailRow
@@ -248,10 +314,15 @@ const AccountPage = () => {
                   copyable
                   onCopy={copyToClipboard}
                 />
-                 <DetailRow
+                <DetailRow
                   icon={Clock}
                   label="Valid For"
                   value="12 Months"
+                />
+                <DetailRow
+                  icon={Clock}
+                  label="Status"
+                  value={<StatusBadge status={selectedLicense?.status || 'Active'} />}
                 />
               </div>
 
@@ -260,13 +331,15 @@ const AccountPage = () => {
                 <div className="space-y-2">
                   <button 
                     onClick={handleClick}
-                    className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2">
+                    className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2"
+                  >
                     <Download className="h-4 w-4" />
                     <span>Download Bitdefender</span>
                   </button>
                   <button 
                     onClick={handleEmailLicense}
-                    className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2">
+                    className="w-full bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center justify-center space-x-2"
+                  >
                     <Mail className="h-4 w-4" />
                     <span>Email License Details</span>
                   </button>
@@ -342,7 +415,7 @@ const AccountPage = () => {
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Mobile Installation</h3>
                 <ol className="list-decimal list-inside space-y-2 text-gray-600">
-                  <li>Download Bitdefender Mobile Security from your device's app store</li>
+                <li>Download Bitdefender Mobile Security from your device's app store</li>
                   <li>Open the app and click "Activate License"</li>
                   <li>Enter your license key shown above</li>
                   <li>Follow the on-screen instructions to complete setup</li>
@@ -356,7 +429,7 @@ const AccountPage = () => {
                 <div>
                   <h4 className="font-medium text-yellow-900">Verification Status</h4>
                   <p className="text-sm text-yellow-700">
-                    Your license has been successfully linked to {selectedLicense?.user_email || user?.email}
+                    Your license has been successfully linked to {user?.email}
                   </p>
                 </div>
               </div>
@@ -365,6 +438,13 @@ const AccountPage = () => {
         </div>
       </div>
     </div>
+     {/* Purchase Modal - outside all conditionals */}
+     <PurchaseModal 
+        isOpen={showPurchaseModal}
+        onClose={() => setShowPurchaseModal(false)}
+        onSuccess={handlePurchaseSuccess}
+      />
+      </>
   );
 };
 

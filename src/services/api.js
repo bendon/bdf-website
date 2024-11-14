@@ -54,16 +54,13 @@ export const getTransactionStatus = async (transactionId, checkoutRequestId) => 
   }
 };
 
-
 export const verifyMpesaCode = async (transactionId, mpesaCode) => {
   logServiceCall('verifyMpesaCode', { transactionId, mpesaCode });
   
   try {
-    const response = await apiClient.get(API_PATHS.LICENSE_PURCHASE.VERIFY_MPESA, {
-      params: {
-        transaction_id: transactionId,
-        mpesa_code: mpesaCode
-      }
+    const response = await apiClient.post(API_PATHS.LICENSE_PURCHASE.VERIFY_MPESA, {
+      transaction_id: transactionId,
+      mpesa_code: mpesaCode
     });
     
     // Validate response structure
@@ -88,18 +85,29 @@ export const verifyMpesaCode = async (transactionId, mpesaCode) => {
   }
 };
 
-export const submitEmail = async (email, transactionId, mpesaCode) => {
-  logServiceCall('submitEmail', { email, transactionId, mpesaCode });
+export const submitEmail = async (email, transactionId, mpesaCode, isGoogleAuth = false) => {
+  logServiceCall('submitEmail', { email, transactionId, mpesaCode, isGoogleAuth });
   
   try {
     const response = await apiClient.post(API_PATHS.LICENSE_PURCHASE.SUBMIT_EMAIL, {
       email,
-      transaction_id: transactionId,  // Add this with underscore to match backend
-      mpesa_code: mpesaCode          // Add this to match backend
+      transaction_id: transactionId,
+      mpesa_code: mpesaCode,
+      is_google_auth: isGoogleAuth
     });
     
     console.log('💫 Submit Email Response:', response.data);
-    return response.data;
+
+    // Check if response has message property
+    if (!response.data?.message) {
+      throw new Error('Invalid response format from server');
+    }
+
+    // Return standardized response format
+    return {
+      status: response.data.message?.status || 'error',
+      message: response.data.message?.message || 'Unknown error occurred'
+    };
   } catch (error) {
     console.error('⚠️ Submit Email Error:', {
       message: error.message,
@@ -188,7 +196,6 @@ export const processGoogleLogin = async (email, transactionId) => {
     throw error;
   }
 };
-
 
 // Add a test function to verify the API connection
 export const testApiConnection = async () => {

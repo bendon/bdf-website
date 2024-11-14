@@ -3,27 +3,86 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../context/UserContext';
 import PurchaseModal from '../modals/PurchaseModal';
+import EmailVerificationModal from '../modals/EmailVerificationModal';
+import { getTransactionStatus } from '../../services/api';
 
 const NavbarWithCTA = ({ onSignInModalOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useContext(UserContext);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  console.log('Current user state in navbar:', user);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState(null);
+
+  // Check for pending transaction on mount and when user changes
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    console.log('NavbarWithCTA - Saved user in localStorage:', savedUser); // Debug log
-  }, []);
+    const checkTransaction = async () => {
+      const savedTransaction = localStorage.getItem('purchaseTransaction');
+      if (savedTransaction && !user) {
+        try {
+          const transaction = JSON.parse(savedTransaction);
+          const isExpired = new Date() - new Date(transaction.timestamp) > 24 * 60 * 60 * 1000;
+          
+          if (!isExpired) {
+            // Check with backend for transaction status
+            const response = await getTransactionStatus(transaction.transaction_id);
+            const status = response.message?.data?.transaction_status?.toUpperCase();
+            const hasEmail = response.message?.data?.user_email;
+
+            if (status === 'COMPLETED' && !hasEmail) {
+              // Transaction completed but no email association
+              setPendingTransaction(transaction);
+              setShowEmailVerification(true);
+              setShowPurchaseModal(false);
+            }
+          } else {
+            // Clear expired transaction
+            localStorage.removeItem('purchaseTransaction');
+            localStorage.removeItem('purchaseState');
+          }
+        } catch (error) {
+          console.error('Error checking transaction:', error);
+          // Clear invalid transaction data
+          localStorage.removeItem('purchaseTransaction');
+          localStorage.removeItem('purchaseState');
+        }
+      }
+    };
+
+    checkTransaction();
+  }, [user]);
+
   const handleLogout = () => {
     logout();
     navigate('/');
   };
+
   const handleBuyNow = () => {
-    setShowPurchaseModal(true);
+    // If there's a pending transaction needing email verification, show that
+    if (pendingTransaction) {
+      setShowEmailVerification(true);
+    } else {
+      setShowPurchaseModal(true);
+    }
   };
+
   const handlePurchaseSuccess = () => {
-    // Handle any post-purchase actions here
     setShowPurchaseModal(false);
-    // Maybe show a success message or redirect
+    navigate('/account');
+  };
+
+  const handleEmailVerificationClose = () => {
+    setShowEmailVerification(false);
+    setPendingTransaction(null);
+    localStorage.removeItem('purchaseTransaction');
+    localStorage.removeItem('purchaseState');
+  };
+
+  const handleEmailVerificationSuccess = () => {
+    setShowEmailVerification(false);
+    setPendingTransaction(null);
+    localStorage.removeItem('purchaseTransaction');
+    localStorage.removeItem('purchaseState');
+    navigate('/account');
   };
 
   return (
@@ -98,19 +157,27 @@ const NavbarWithCTA = ({ onSignInModalOpen }) => {
           </div>
         </div>
       </nav>
-    
-
     </div>
     <div className="h-16"></div>
-       {/* Purchase Modal */}
-       <PurchaseModal
-        isOpen={showPurchaseModal}
-        onClose={() => setShowPurchaseModal(false)}
-        onSuccess={handlePurchaseSuccess}
-      />
 
+    {/* Purchase Modal */}
+    <PurchaseModal
+      isOpen={showPurchaseModal}
+      onClose={() => setShowPurchaseModal(false)}
+      onSuccess={handlePurchaseSuccess}
+    />
+
+    {/* Email Verification Modal for pending transaction */}
+    {showEmailVerification && pendingTransaction && (
+      <EmailVerificationModal
+        isOpen={true}
+        onClose={handleEmailVerificationClose}
+        onSuccess={handleEmailVerificationSuccess}
+        transactionId={pendingTransaction.transaction_id}
+        mpesaCode={pendingTransaction.mpesa_code}
+      />
+    )}
     </>
-    
   );
 };
 

@@ -94,7 +94,17 @@ const EmailVerificationModal = ({ isOpen, onClose, transactionId, mpesaCode }) =
 
       if (response?.message?.status === 'success') {
         updateFormState({ success: response.message.message || 'Verification successful' });
-        await login(email);
+        
+        // Ensure login is successful before proceeding
+        const loginSuccess = await login(email);
+        if (!loginSuccess) {
+          throw new Error('Failed to log in after verification');
+        }
+
+        // Clear any stored transaction data
+        localStorage.removeItem('purchaseTransaction');
+        localStorage.removeItem('purchaseState');
+
         setTimeout(() => {
           navigate('/account');
           handleClose();
@@ -133,7 +143,16 @@ const EmailVerificationModal = ({ isOpen, onClose, transactionId, mpesaCode }) =
         const googleLoginResponse = await processGoogleLogin(userInfo.email, transactionId);
 
         if (googleLoginResponse?.message?.status === 'success') {
-          await login(userInfo.email);
+          // Ensure login is successful before proceeding
+          const loginSuccess = await login(userInfo.email);
+          if (!loginSuccess) {
+            throw new Error('Failed to log in after Google verification');
+          }
+
+          // Clear any stored transaction data
+          localStorage.removeItem('purchaseTransaction');
+          localStorage.removeItem('purchaseState');
+
           navigate('/account');
           handleClose();
         } else {
