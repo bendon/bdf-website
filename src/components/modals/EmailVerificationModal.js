@@ -47,30 +47,31 @@ const EmailVerificationModal = ({ isOpen, onClose, transactionId, mpesaCode }) =
       });
       return;
     }
-
+  
     updateFormState({ loading: true, error: '', success: '' });
-
+  
     try {
       const response = await submitEmail(email, transactionId, mpesaCode);
-
-      if (response?.message?.status === 'success') {
+      const message = response?.data?.message;
+  
+      // Check the actual response structure
+      if (message?.status === 'success' || message?.message === 'OTP sent successfully') {
         updateFormState({
-          success: response.message.message || 'OTP sent to your email',
+          success: message.message || 'OTP sent to your email',
           step: 'OTP',
           resendTimer: 30,
         });
-
-        // Start resend timer
+  
         const timer = setInterval(() => {
           setFormState((prev) => ({
             ...prev,
             resendTimer: prev.resendTimer > 0 ? prev.resendTimer - 1 : 0,
           }));
         }, 1000);
-
+  
         setTimeout(() => clearInterval(timer), 30000);
       } else {
-        throw new Error(response?.message?.message || 'Failed to send OTP');
+        throw new Error(message?.message || 'Failed to send OTP');
       }
     } catch (error) {
       updateFormState({
