@@ -21,7 +21,8 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     showMpesaCodeEntry: false,
     showEmailVerification: false,
     timeoutAction: null,
-    showSuccess: false
+    showSuccess: false,
+    showPreviousTransactionPrompt: false
   });
 
   // Check for existing transaction when modal opens
@@ -32,47 +33,52 @@ const PurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   }, [isOpen, user]);
 
   const checkExistingTransaction = async () => {
-    console.log('Checking existing transaction...'); // Debug log
+    console.log('Checking existing transaction...'); 
     const savedTransaction = localStorage.getItem('purchaseTransaction');
-    const savedState = localStorage.getItem('purchaseState');
     
     if (savedTransaction && !user) {
       try {
         const transaction = JSON.parse(savedTransaction);
-        const state = savedState ? JSON.parse(savedState) : null;
         const isExpired = new Date() - new Date(transaction.timestamp) > 24 * 60 * 60 * 1000;
-
-        if (!isExpired) {
-          // Check transaction status with backend
-          const response = await getTransactionStatus(transaction.transaction_id);
-          console.log('Transaction status:', response); // Debug log
-
-          const status = response.message?.data?.transaction_status?.toUpperCase();
-          const hasEmail = response.message?.data?.user_email;
-
-          if (status === 'COMPLETED' && !hasEmail) {
-            // Force email verification for completed transaction without email
-            updateFormState({
-              transactionId: transaction.transaction_id,
-              mpesaCode: transaction.mpesa_code,
-              status: PAYMENT_STATUS.COMPLETED,
-              showEmailVerification: true,
-              showMpesaCodeEntry: false
-            });
-            return;
-          }
+  
+        if (isExpired) {
+          cleanup();
+          return;
         }
-
-        // Clear expired or invalid transaction
-        cleanup();
+  
+        // Verify transaction status with backend
+        const response = await getTransactionStatus(transaction.transaction_id);
+        const status = response.message?.data?.transaction_status?.toUpperCase();
+        const hasEmail = response.message?.data?.user_email;
+  
+        if (status === PAYMENT_STATUS.COMPLETED && !hasEmail) {
+          updateFormState({
+            showPreviousTransactionPrompt: true,
+            transactionId: transaction.transaction_id,
+            mpesaCode: transaction.mpesa_code,
+          });
+          return;
+        }
       } catch (error) {
         console.error('Error checking transaction:', error);
         cleanup();
       }
     }
-
-    // No valid transaction found, start fresh
+  
     resetForm();
+  };
+
+  const handlePreviousTransactionDecision = (continuePrevious) => {
+    if (continuePrevious) {
+      updateFormState({
+        showPreviousTransactionPrompt: false,
+        showEmailVerification: true,
+        status: PAYMENT_STATUS.COMPLETED
+      });
+    } else {
+      cleanup();
+      resetForm();
+    }
   };
 
   const updateFormState = (updates) => {
@@ -435,100 +441,103 @@ const startPolling = (transactionId, checkoutRequestId) => {
     </div>
   );
 
+  const renderPreviousTransactionPrompt = () => (
+    <div className="space-y-6 p-4">
+      <div className="text-center">
+        <AlertCircle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          Unfinished Purchase Found
+        </h3>
+        <p className="text-gray-600 mb-6">
+          You have a completed purchase that needs email verification. Would you like to continue with this purchase or start a new one?
+        </p>
+      </div>
+      
+      <div className="space-y-3">
+        <button
+          onClick={() => handlePreviousTransactionDecision(true)}
+          className="w-full h-12 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          Continue Previous Purchase
+        </button>
+        <button
+          onClick={() => handlePreviousTransactionDecision(false)}
+          className="w-full h-12 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+        >
+          Start New Purchase
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <Modal isOpen={isOpen} onClose={handleModalClose}>
+    <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-6 max-w-md mx-auto">
-        <h2 className="text-2xl font-bold mb-6">Complete Your Purchase</h2>
-  
-        {formState.error && (
-          <div className="flex items-center bg-red-50 text-red-600 p-4 rounded-lg mb-6">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            <p className="text-sm">{formState.error}</p>
-          </div>
-        )}
-  
-        {formState.loading && (
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">
-                {formState.status === PAYMENT_STATUS.COMPLETED 
-                  ? 'Associating license with your account...' 
-                  : 'Processing payment...'}
-              </span>
-              {formState.status !== PAYMENT_STATUS.COMPLETED && (
-                <span className="text-sm font-medium">{formState.remainingTime}s</span>
-              )}
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full">
-              <div
-                className="h-2 bg-blue-600 rounded-full transition-all duration-1000"
-                style={{ 
-                  width: formState.status === PAYMENT_STATUS.COMPLETED 
-                    ? '100%' 
-                    : `${(formState.remainingTime / 60) * 100}%` 
-                }}
-              />
-            </div>
-          </div>
-        )}
-  
-        {formState.showSuccess ? (
-          renderSuccessState()
+        {formState.showPreviousTransactionPrompt ? (
+          // Show the prompt for unfinished transaction
+          renderPreviousTransactionPrompt()
         ) : formState.showEmailVerification ? (
+          // Show email verification modal if needed
           <EmailVerificationModal
             isOpen={true}
             onClose={() => {
+              // Don't close if user is not logged in
               if (!user) return;
+              // Otherwise, clean up and close
               updateFormState({ showEmailVerification: false });
               cleanup();
               onSuccess();
             }}
+            // Pass necessary props for verification
             transactionId={formState.transactionId}
             mpesaCode={formState.mpesaCode}
           />
+        ) : formState.showSuccess ? (
+          // Replace the comment with the success state
+          renderSuccessState()
+        ) : formState.showMpesaCodeEntry ? (
+          // Replace with MPESA code entry form
+          renderMpesaCodeEntry()
+        ) : !formState.timeoutAction && 
+           formState.status !== PAYMENT_STATUS.COMPLETED ? (
+          // Show the initial purchase form
+          renderForm()
         ) : (
-          <>
-            {formState.showMpesaCodeEntry
-              ? renderMpesaCodeEntry()
-              : !formState.timeoutAction &&
-                formState.status !== PAYMENT_STATUS.COMPLETED &&
-                renderForm()}
-  
-            {formState.timeoutAction === 'choose' && (
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      updateFormState({ loading: true, error: '' });
-                      handleMpesaCodeVerify();
-                    }}
-                    className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Check Again
-                  </button>
-                  <button
-                    onClick={() => updateFormState({ 
-                      showMpesaCodeEntry: true, 
-                      timeoutAction: null 
-                    })}
-                    className="flex-1 h-12 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  >
-                    Enter M-PESA Code
-                  </button>
-                </div>
+          // Show timeout action options if needed
+          formState.timeoutAction === 'choose' && (
+            <div className="space-y-4">
+              <div className="flex gap-3">
                 <button
-                  onClick={resetForm}
-                  className="w-full h-12 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    updateFormState({ loading: true, error: '' });
+                    handleMpesaCodeVerify();
+                  }}
+                  className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 >
-                  Start Over
+                  Check Again
+                </button>
+                <button
+                  onClick={() => updateFormState({ 
+                    showMpesaCodeEntry: true, 
+                    timeoutAction: null 
+                  })}
+                  className="flex-1 h-12 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                >
+                  Enter M-PESA Code
                 </button>
               </div>
-            )}
-          </>
+              <button
+                onClick={resetForm}
+                className="w-full h-12 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+              >
+                Start Over
+              </button>
+            </div>
+          )
         )}
       </div>
     </Modal>
   );
-};
+}
 
 export default PurchaseModal;
